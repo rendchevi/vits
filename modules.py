@@ -195,7 +195,10 @@ class ResBlock1(torch.nn.Module):
             SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[2],
                                padding=get_padding(kernel_size, dilation[2]), norm_method="wn")
         ])
-        self.convs1.apply(init_weights)
+        for conv in self.convs1:
+          conv.DepthwiseConv1D.apply(init_weights)
+          conv.PointwiseConv1D.apply(init_weights)
+          
 
         self.convs2 = nn.ModuleList([
             SepConv1D(channels, channels, kernel_size, 1, dilation=1,
@@ -205,7 +208,9 @@ class ResBlock1(torch.nn.Module):
             SepConv1D(channels, channels, kernel_size, 1, dilation=1,
                                padding=get_padding(kernel_size, 1), norm_method="wn")
         ])
-        self.convs2.apply(init_weights)
+        for conv in self.convs2:
+          conv.DepthwiseConv1D.apply(init_weights)
+          conv.PointwiseConv1D.apply(init_weights)
 
     def forward(self, x, x_mask=None):
         for c1, c2 in zip(self.convs1, self.convs2):
@@ -238,7 +243,9 @@ class ResBlock2(torch.nn.Module):
             SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[1],
                                padding=get_padding(kernel_size, dilation[1], norm_method="wn"))
         ])
-        self.convs.apply(init_weights)
+        for conv in self.convs:
+          conv.DepthwiseConv1D.apply(init_weights)
+          conv.PointwiseConv1D.apply(init_weights)
 
     def forward(self, x, x_mask=None):
         for c in self.convs:

@@ -189,11 +189,11 @@ class ResBlock1(torch.nn.Module):
         super(ResBlock1, self).__init__()
         self.convs1 = nn.ModuleList([
             SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0], norm_method="wn")),
+                               padding=get_padding(kernel_size, dilation[0]), norm_method="wn"),
             SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1], norm_method="wn")),
+                               padding=get_padding(kernel_size, dilation[1]), norm_method="wn"),
             SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2], norm_method="wn"))
+                               padding=get_padding(kernel_size, dilation[2]), norm_method="wn")
         ])
         self.convs1.apply(init_weights)
 

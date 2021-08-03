@@ -6,11 +6,11 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
+from torch.nn import ConvTranspose1d, AvgPool1d, Conv2d
 from torch.nn.utils import weight_norm, remove_weight_norm
 
 import commons
-from commons import init_weights, get_padding
+from commons import init_weights, get_padding, SepConv1D
 from transforms import piecewise_rational_quadratic_transform
 
 
@@ -45,15 +45,15 @@ class ConvReluNorm(nn.Module):
 
     self.conv_layers = nn.ModuleList()
     self.norm_layers = nn.ModuleList()
-    self.conv_layers.append(nn.Conv1d(in_channels, hidden_channels, kernel_size, padding=kernel_size//2))
+    self.conv_layers.append(SepConv1D(in_channels, hidden_channels, kernel_size, padding=kernel_size//2))
     self.norm_layers.append(LayerNorm(hidden_channels))
     self.relu_drop = nn.Sequential(
         nn.ReLU(),
         nn.Dropout(p_dropout))
     for _ in range(n_layers-1):
-      self.conv_layers.append(nn.Conv1d(hidden_channels, hidden_channels, kernel_size, padding=kernel_size//2))
+      self.conv_layers.append(SepConv1D(hidden_channels, hidden_channels, kernel_size, padding=kernel_size//2))
       self.norm_layers.append(LayerNorm(hidden_channels))
-    self.proj = nn.Conv1d(hidden_channels, out_channels, 1)
+    self.proj = SepConv1D(hidden_channels, out_channels, 1)
     self.proj.weight.data.zero_()
     self.proj.bias.data.zero_()
 
@@ -86,10 +86,10 @@ class DDSConv(nn.Module):
     for i in range(n_layers):
       dilation = kernel_size ** i
       padding = (kernel_size * dilation - dilation) // 2
-      self.convs_sep.append(nn.Conv1d(channels, channels, kernel_size, 
+      self.convs_sep.append(SepConv1D(channels, channels, kernel_size, 
           groups=channels, dilation=dilation, padding=padding
       ))
-      self.convs_1x1.append(nn.Conv1d(channels, channels, 1))
+      self.convs_1x1.append(SepConv1D(channels, channels, 1))
       self.norms_1.append(LayerNorm(channels))
       self.norms_2.append(LayerNorm(channels))
 
@@ -124,13 +124,13 @@ class WN(torch.nn.Module):
     self.drop = nn.Dropout(p_dropout)
 
     if gin_channels != 0:
-      cond_layer = torch.nn.Conv1d(gin_channels, 2*hidden_channels*n_layers, 1)
+      cond_layer = torch.SepConv1D(gin_channels, 2*hidden_channels*n_layers, 1)
       self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
 
     for i in range(n_layers):
       dilation = dilation_rate ** i
       padding = int((kernel_size * dilation - dilation) / 2)
-      in_layer = torch.nn.Conv1d(hidden_channels, 2*hidden_channels, kernel_size,
+      in_layer = torch.SepConv1D(hidden_channels, 2*hidden_channels, kernel_size,
                                  dilation=dilation, padding=padding)
       in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
       self.in_layers.append(in_layer)
@@ -141,7 +141,7 @@ class WN(torch.nn.Module):
       else:
         res_skip_channels = hidden_channels
 
-      res_skip_layer = torch.nn.Conv1d(hidden_channels, res_skip_channels, 1)
+      res_skip_layer = torch.SepConv1D(hidden_channels, res_skip_channels, 1)
       res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
       self.res_skip_layers.append(res_skip_layer)
 
@@ -188,21 +188,21 @@ class ResBlock1(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
         super(ResBlock1, self).__init__()
         self.convs1 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
+            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[0],
                                padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
+            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[1],
                                padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[2],
+            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[2],
                                padding=get_padding(kernel_size, dilation[2])))
         ])
         self.convs1.apply(init_weights)
 
         self.convs2 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
+            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=1,
                                padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
+            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=1,
                                padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
+            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=1,
                                padding=get_padding(kernel_size, 1)))
         ])
         self.convs2.apply(init_weights)
@@ -233,9 +233,9 @@ class ResBlock2(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
         super(ResBlock2, self).__init__()
         self.convs = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
+            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[0],
                                padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
+            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[1],
                                padding=get_padding(kernel_size, dilation[1])))
         ])
         self.convs.apply(init_weights)
@@ -315,9 +315,9 @@ class ResidualCouplingLayer(nn.Module):
     self.half_channels = channels // 2
     self.mean_only = mean_only
 
-    self.pre = nn.Conv1d(self.half_channels, hidden_channels, 1)
+    self.pre = SepConv1D(self.half_channels, hidden_channels, 1)
     self.enc = WN(hidden_channels, kernel_size, dilation_rate, n_layers, p_dropout=p_dropout, gin_channels=gin_channels)
-    self.post = nn.Conv1d(hidden_channels, self.half_channels * (2 - mean_only), 1)
+    self.post = SepConv1D(hidden_channels, self.half_channels * (2 - mean_only), 1)
     self.post.weight.data.zero_()
     self.post.bias.data.zero_()
 
@@ -354,9 +354,9 @@ class ConvFlow(nn.Module):
     self.tail_bound = tail_bound
     self.half_channels = in_channels // 2
 
-    self.pre = nn.Conv1d(self.half_channels, filter_channels, 1)
+    self.pre = SepConv1D(self.half_channels, filter_channels, 1)
     self.convs = DDSConv(filter_channels, kernel_size, n_layers, p_dropout=0.)
-    self.proj = nn.Conv1d(filter_channels, self.half_channels * (num_bins * 3 - 1), 1)
+    self.proj = SepConv1D(filter_channels, self.half_channels * (num_bins * 3 - 1), 1)
     self.proj.weight.data.zero_()
     self.proj.bias.data.zero_()
 

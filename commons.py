@@ -159,3 +159,67 @@ def clip_grad_value_(parameters, clip_value, norm_type=2):
       p.grad.data.clamp_(min=-clip_value, max=clip_value)
   total_norm = total_norm ** (1. / norm_type)
   return total_norm
+
+class Conv1D(nn.Conv1d):
+
+    def __init__(self,
+                 *args,
+                 activation = None,
+                 **kwargs
+                 ):
+
+        super(Conv1D, self).__init__(*args, **kwargs)
+
+        #self.padding = [(self.dilation[0] * (self.kernel_size[0] - 1)) // 2]
+
+        if activation == None:
+            self.activation = None
+            nn.init.xavier_uniform_(self.weight, gain = nn.init.calculate_gain('linear'))
+        
+        elif activation != None:
+            self.activation = activation
+            nn.init.xavier_uniform_(self.weight, gain = nn.init.calculate_gain('relu'))
+
+    def forward(self,
+                inputs,
+                mask = None
+                ):
+
+        if self.activation == None:
+            outputs = super(Conv1D, self).forward(inputs)
+        else:
+            outputs = self.activation(super(Conv1D, self).forward(inputs))
+        
+        if mask == None:
+            return outputs
+        else:
+            outputs = outputs.masked_fill(mask.unsqueeze(1), 0)
+            return outputs
+
+class SepConv1D(nn.Module):
+
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 padding=0,
+                 dilation=1,
+                 groups=1,
+                 bias=True,
+                 padding_mode='zeros',
+                 ):
+
+        super(SepConv1D, self).__init__()
+
+        self.DepthwiseConv1D = Conv1D(in_channels, in_channels, kernel_size = kernel_size, bias = bias, groups = in_channels)
+        self.PointwiseConv1D = Conv1D(in_channels, out_channels, kernel_size = 1, bias = bias)
+
+    def forward(self,
+                x,
+                ):
+
+        out = self.DepthwiseConv1D(x)
+        out = self.PointwiseConv1D(out)
+
+        return out

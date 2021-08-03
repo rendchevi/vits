@@ -9,9 +9,9 @@ import modules
 import attentions
 import monotonic_align
 
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
+from torch.nn import ConvTranspose1d, AvgPool1d, Conv2d
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
-from commons import init_weights, get_padding
+from commons import init_weights, get_padding, SepConv1D
 
 
 class StochasticDurationPredictor(nn.Module):
@@ -32,8 +32,8 @@ class StochasticDurationPredictor(nn.Module):
       self.flows.append(modules.ConvFlow(2, filter_channels, kernel_size, n_layers=3))
       self.flows.append(modules.Flip())
 
-    self.post_pre = nn.Conv1d(1, filter_channels, 1)
-    self.post_proj = nn.Conv1d(filter_channels, filter_channels, 1)
+    self.post_pre = SepConv1D(1, filter_channels, 1)
+    self.post_proj = SepConv1D(filter_channels, filter_channels, 1)
     self.post_convs = modules.DDSConv(filter_channels, kernel_size, n_layers=3, p_dropout=p_dropout)
     self.post_flows = nn.ModuleList()
     self.post_flows.append(modules.ElementwiseAffine(2))
@@ -41,11 +41,11 @@ class StochasticDurationPredictor(nn.Module):
       self.post_flows.append(modules.ConvFlow(2, filter_channels, kernel_size, n_layers=3))
       self.post_flows.append(modules.Flip())
 
-    self.pre = nn.Conv1d(in_channels, filter_channels, 1)
-    self.proj = nn.Conv1d(filter_channels, filter_channels, 1)
+    self.pre = SepConv1D(in_channels, filter_channels, 1)
+    self.proj = SepConv1D(filter_channels, filter_channels, 1)
     self.convs = modules.DDSConv(filter_channels, kernel_size, n_layers=3, p_dropout=p_dropout)
     if gin_channels != 0:
-      self.cond = nn.Conv1d(gin_channels, filter_channels, 1)
+      self.cond = SepConv1D(gin_channels, filter_channels, 1)
 
   def forward(self, x, x_mask, w=None, g=None, reverse=False, noise_scale=1.0):
     x = torch.detach(x)
@@ -106,14 +106,14 @@ class DurationPredictor(nn.Module):
     self.gin_channels = gin_channels
 
     self.drop = nn.Dropout(p_dropout)
-    self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size//2)
+    self.conv_1 = SepConv1D(in_channels, filter_channels, kernel_size, padding=kernel_size//2)
     self.norm_1 = modules.LayerNorm(filter_channels)
-    self.conv_2 = nn.Conv1d(filter_channels, filter_channels, kernel_size, padding=kernel_size//2)
+    self.conv_2 = SepConv1D(filter_channels, filter_channels, kernel_size, padding=kernel_size//2)
     self.norm_2 = modules.LayerNorm(filter_channels)
-    self.proj = nn.Conv1d(filter_channels, 1, 1)
+    self.proj = SepConv1D(filter_channels, 1, 1)
 
     if gin_channels != 0:
-      self.cond = nn.Conv1d(gin_channels, in_channels, 1)
+      self.cond = SepConv1D(gin_channels, in_channels, 1)
 
   def forward(self, x, x_mask, g=None):
     x = torch.detach(x)
@@ -162,7 +162,7 @@ class TextEncoder(nn.Module):
       n_layers,
       kernel_size,
       p_dropout)
-    self.proj= nn.Conv1d(hidden_channels, out_channels * 2, 1)
+    self.proj= SepConv1D(hidden_channels, out_channels * 2, 1)
 
   def forward(self, x, x_lengths):
     x = self.emb(x) * math.sqrt(self.hidden_channels) # [b, t, h]
@@ -227,9 +227,9 @@ class PosteriorEncoder(nn.Module):
     self.n_layers = n_layers
     self.gin_channels = gin_channels
 
-    self.pre = nn.Conv1d(in_channels, hidden_channels, 1)
+    self.pre = SepConv1D(in_channels, hidden_channels, 1)
     self.enc = modules.WN(hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=gin_channels)
-    self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
+    self.proj = SepConv1D(hidden_channels, out_channels * 2, 1)
 
   def forward(self, x, x_lengths, g=None):
     x_mask = torch.unsqueeze(commons.sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype)
@@ -246,7 +246,7 @@ class Generator(torch.nn.Module):
         super(Generator, self).__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
-        self.conv_pre = Conv1d(initial_channel, upsample_initial_channel, 7, 1, padding=3)
+        self.conv_pre = SepConv1D(initial_channel, upsample_initial_channel, 7, 1, padding=3)
         resblock = modules.ResBlock1 if resblock == '1' else modules.ResBlock2
 
         self.ups = nn.ModuleList()
@@ -261,11 +261,11 @@ class Generator(torch.nn.Module):
             for j, (k, d) in enumerate(zip(resblock_kernel_sizes, resblock_dilation_sizes)):
                 self.resblocks.append(resblock(ch, k, d))
 
-        self.conv_post = Conv1d(ch, 1, 7, 1, padding=3, bias=False)
+        self.conv_post = SepConv1D(ch, 1, 7, 1, padding=3, bias=False)
         self.ups.apply(init_weights)
 
         if gin_channels != 0:
-            self.cond = nn.Conv1d(gin_channels, upsample_initial_channel, 1)
+            self.cond = SepConv1D(gin_channels, upsample_initial_channel, 1)
 
     def forward(self, x, g=None):
         x = self.conv_pre(x)
@@ -338,14 +338,14 @@ class DiscriminatorS(torch.nn.Module):
         super(DiscriminatorS, self).__init__()
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList([
-            norm_f(Conv1d(1, 16, 15, 1, padding=7)),
-            norm_f(Conv1d(16, 64, 41, 4, groups=4, padding=20)),
-            norm_f(Conv1d(64, 256, 41, 4, groups=16, padding=20)),
-            norm_f(Conv1d(256, 1024, 41, 4, groups=64, padding=20)),
-            norm_f(Conv1d(1024, 1024, 41, 4, groups=256, padding=20)),
-            norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
+            norm_f(SepConv1D(1, 16, 15, 1, padding=7)),
+            norm_f(SepConv1D(16, 64, 41, 4, groups=4, padding=20)),
+            norm_f(SepConv1D(64, 256, 41, 4, groups=16, padding=20)),
+            norm_f(SepConv1D(256, 1024, 41, 4, groups=64, padding=20)),
+            norm_f(SepConv1D(1024, 1024, 41, 4, groups=256, padding=20)),
+            norm_f(SepConv1D(1024, 1024, 5, 1, padding=2)),
         ])
-        self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
+        self.conv_post = norm_f(SepConv1D(1024, 1, 3, 1, padding=1))
 
     def forward(self, x):
         fmap = []

@@ -208,12 +208,21 @@ class SepConv1D(nn.Module):
                  groups=1,
                  bias=True,
                  padding_mode='zeros',
+                 norm_method = None,
                  ):
 
         super(SepConv1D, self).__init__()
 
-        self.DepthwiseConv1D = Conv1D(in_channels, in_channels, kernel_size = kernel_size, bias = bias, groups = in_channels)
-        self.PointwiseConv1D = Conv1D(in_channels, out_channels, kernel_size = 1, bias = bias)
+
+        if norm_method == None:
+          self.DepthwiseConv1D = Conv1D(in_channels, in_channels, kernel_size = kernel_size, bias = bias, groups = in_channels)
+          self.PointwiseConv1D = Conv1D(in_channels, out_channels, kernel_size = 1, bias = bias)
+        elif norm_method == "wn":
+          self.DepthwiseConv1D = torch.nn.utils.weight_norm(Conv1D(in_channels, in_channels, kernel_size = kernel_size, bias = bias, groups = in_channels))
+          self.PointwiseConv1D = torch.nn.utils.weight_norm(Conv1D(in_channels, out_channels, kernel_size = 1, bias = bias))
+        elif norm_method == "sn":
+          self.DepthwiseConv1D = torch.nn.utils.spectral_norm(Conv1D(in_channels, in_channels, kernel_size = kernel_size, bias = bias, groups = in_channels))
+          self.PointwiseConv1D = torch.nn.utils.spectral_norm(Conv1D(in_channels, out_channels, kernel_size = 1, bias = bias))
 
     def forward(self,
                 x,

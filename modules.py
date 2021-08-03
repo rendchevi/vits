@@ -124,15 +124,15 @@ class WN(torch.nn.Module):
     self.drop = nn.Dropout(p_dropout)
 
     if gin_channels != 0:
-      cond_layer = torch.SepConv1D(gin_channels, 2*hidden_channels*n_layers, 1)
-      self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
+      cond_layer = SepConv1D(gin_channels, 2*hidden_channels*n_layers, 1, norm_method="wn")
+      #self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
 
     for i in range(n_layers):
       dilation = dilation_rate ** i
       padding = int((kernel_size * dilation - dilation) / 2)
-      in_layer = torch.SepConv1D(hidden_channels, 2*hidden_channels, kernel_size,
-                                 dilation=dilation, padding=padding)
-      in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+      in_layer = SepConv1D(hidden_channels, 2*hidden_channels, kernel_size,
+                                 dilation=dilation, padding=padding, norm_method="wn")
+      #in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
       self.in_layers.append(in_layer)
 
       # last one is not necessary
@@ -141,8 +141,8 @@ class WN(torch.nn.Module):
       else:
         res_skip_channels = hidden_channels
 
-      res_skip_layer = torch.SepConv1D(hidden_channels, res_skip_channels, 1)
-      res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
+      res_skip_layer = SepConv1D(hidden_channels, res_skip_channels, 1, norm_method="wn")
+      #res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
       self.res_skip_layers.append(res_skip_layer)
 
   def forward(self, x, x_mask, g=None, **kwargs):
@@ -188,22 +188,22 @@ class ResBlock1(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
         super(ResBlock1, self).__init__()
         self.convs1 = nn.ModuleList([
-            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2])))
+            SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[0],
+                               padding=get_padding(kernel_size, dilation[0], norm_method="wn")),
+            SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[1],
+                               padding=get_padding(kernel_size, dilation[1], norm_method="wn")),
+            SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[2],
+                               padding=get_padding(kernel_size, dilation[2], norm_method="wn"))
         ])
         self.convs1.apply(init_weights)
 
         self.convs2 = nn.ModuleList([
-            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1)))
+            SepConv1D(channels, channels, kernel_size, 1, dilation=1,
+                               padding=get_padding(kernel_size, 1), norm_method="wn"),
+            SepConv1D(channels, channels, kernel_size, 1, dilation=1,
+                               padding=get_padding(kernel_size, 1), norm_method="wn"),
+            SepConv1D(channels, channels, kernel_size, 1, dilation=1,
+                               padding=get_padding(kernel_size, 1), norm_method="wn")
         ])
         self.convs2.apply(init_weights)
 
@@ -233,10 +233,10 @@ class ResBlock2(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
         super(ResBlock2, self).__init__()
         self.convs = nn.ModuleList([
-            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1])))
+            SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[0],
+                               padding=get_padding(kernel_size, dilation[0], norm_method="wn")),
+            SepConv1D(channels, channels, kernel_size, 1, dilation=dilation[1],
+                               padding=get_padding(kernel_size, dilation[1], norm_method="wn"))
         ])
         self.convs.apply(init_weights)
 

@@ -336,14 +336,15 @@ class DiscriminatorP(torch.nn.Module):
 class DiscriminatorS(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(DiscriminatorS, self).__init__()
-        norm_f = weight_norm if use_spectral_norm == False else spectral_norm
+        #norm_f = weight_norm if use_spectral_norm == False else spectral_norm
+        norm_f = "wn" if use_spectral_norm == False else "sn"
         self.convs = nn.ModuleList([
-            norm_f(SepConv1D(1, 16, 15, 1, padding=7)),
-            norm_f(SepConv1D(16, 64, 41, 4, groups=4, padding=20)),
-            norm_f(SepConv1D(64, 256, 41, 4, groups=16, padding=20)),
-            norm_f(SepConv1D(256, 1024, 41, 4, groups=64, padding=20)),
-            norm_f(SepConv1D(1024, 1024, 41, 4, groups=256, padding=20)),
-            norm_f(SepConv1D(1024, 1024, 5, 1, padding=2)),
+            SepConv1D(1, 16, 15, 1, padding=7, norm_method = norm_f),
+            SepConv1D(16, 64, 41, 4, groups=4, padding=20, norm_method = norm_f),
+            SepConv1D(64, 256, 41, 4, groups=16, padding=20, norm_method = norm_f),
+            SepConv1D(256, 1024, 41, 4, groups=64, padding=20, norm_method = norm_f),
+            SepConv1D(1024, 1024, 41, 4, groups=256, padding=20, norm_method = norm_f),
+            SepConv1D(1024, 1024, 5, 1, padding=, norm_method = norm_f2),
         ])
         self.conv_post = norm_f(SepConv1D(1024, 1, 3, 1, padding=1))
 

@@ -344,7 +344,7 @@ class DiscriminatorS(torch.nn.Module):
             SepConv1D(64, 256, 41, 4, groups=16, padding=20, norm_method = norm_f),
             SepConv1D(256, 1024, 41, 4, groups=64, padding=20, norm_method = norm_f),
             SepConv1D(1024, 1024, 41, 4, groups=256, padding=20, norm_method = norm_f),
-            SepConv1D(1024, 1024, 5, 1, padding=, norm_method = norm_f2),
+            SepConv1D(1024, 1024, 5, 1, padding=2, norm_method = norm_f),
         ])
         self.conv_post = norm_f(SepConv1D(1024, 1, 3, 1, padding=1))
 

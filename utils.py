@@ -14,6 +14,22 @@ MATPLOTLIB_FLAG = False
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging
 
+def count_params_G(net_g):
+    enc_p_param = sum(p.numel() for p in net_g.enc_p.parameters())
+    dp_param = sum(p.numel() for p in net_g.dp.parameters())
+    enc_q_param = sum(p.numel() for p in net_g.enc_q.parameters())
+    flow_param = sum(p.numel() for p in net_g.flow.parameters())
+    dec_param = sum(p.numel() for p in net_g.dec.parameters())
+    total_g = enc_p_param + dp_param + enc_q_param + flow_param + dec_param
+
+    print(f"Prior Encoder: {enc_p_param}")
+    print(f"DP: {dp_param}")
+
+    print(f"Posterior Encoder: {enc_q_param}")
+    print(f"Flow: {flow_param}")
+    print(f"Decoder: {dec_param}")
+
+    print(f"Total G: {total_g}")
 
 def load_checkpoint(checkpoint_path, model, optimizer=None):
   assert os.path.isfile(checkpoint_path)

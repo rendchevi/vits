@@ -88,6 +88,11 @@ def run(rank, n_gpus, hps):
       hps.train.segment_size // hps.data.hop_length,
       **hps.model).cuda(rank)
   net_d = MultiPeriodDiscriminator(hps.model.use_spectral_norm).cuda(rank)
+
+  utils.count_params_G(net_g)
+  print("====================")
+  print(f"net_D params: {sum(p.numel() for p in net_d.parameters())}")
+
   optim_g = torch.optim.AdamW(
       net_g.parameters(), 
       hps.train.learning_rate, 

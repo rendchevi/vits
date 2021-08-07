@@ -392,7 +392,8 @@ class SynthesizerTrn(nn.Module):
   Synthesizer for Training
   """
 
-  def __init__(self, 
+  def __init__(self,
+    hps, 
     n_vocab,
     spec_channels,
     segment_size,
@@ -436,22 +437,63 @@ class SynthesizerTrn(nn.Module):
 
     self.use_sdp = use_sdp
 
-    self.enc_p = TextEncoder(n_vocab,
-        inter_channels,
-        hidden_channels,
-        filter_channels,
-        n_heads,
-        n_layers,
-        kernel_size,
-        p_dropout)
-    self.dec = Generator(inter_channels, resblock, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=gin_channels)
-    self.enc_q = PosteriorEncoder(spec_channels, inter_channels, hidden_channels, 5, 1, 16, gin_channels=gin_channels)
-    self.flow = ResidualCouplingBlock(inter_channels, hidden_channels, 5, 1, 4, gin_channels=gin_channels)
+    '''
+    n_heads_p = 2
+    n_layers_p = 6
+    n_layers_post = 16
+    n_flow = 4
+    n_flow_layers = 4
+    
+    '''
+
+    self.enc_p = TextEncoder(n_vocab = n_vocab,
+                             out_channels = inter_channels,
+                             hidden_channels = hidden_channels,
+                             filter_channels = filter_channels,
+                             n_heads = hps.model.n_heads_p,
+                             n_layers = hps.model.n_layers_p,
+                             kernel_size = kernel_size,
+                             p_dropout = p_dropout)
+
+    self.dec = Generator(initial_channel = inter_channels,
+                         resblock = resblock,
+                         resblock_kernel_sizes = resblock_kernel_sizes,
+                         resblock_dilation_sizes = resblock_dilation_sizes,
+                         upsample_rates = upsample_rates,
+                         upsample_initial_channel = upsample_initial_channel,
+                         upsample_kernel_sizes = upsample_kernel_sizes,
+                         gin_channels = gin_channels)
+
+    self.enc_q = PosteriorEncoder(in_channels = spec_channels,
+                                  out_channels = inter_channels,
+                                  hidden_channels = hidden_channels,
+                                  kernel_size = 5,
+                                  dilation_rate = 1,
+                                  n_layers = hps.model.n_layers_post,
+                                  gin_channels=gin_channels)
+
+    self.flow = ResidualCouplingBlock(channels = inter_channels,
+                                      hidden_channels = hidden_channels,
+                                      kernel_size = 5,
+                                      dilation_rate = 1,
+                                      n_layers = hps.model.n_flow_layers,
+                                      n_flows = hps.model.n_flow,
+                                      gin_channels = gin_channels)
 
     if use_sdp:
-      self.dp = StochasticDurationPredictor(hidden_channels, 192, 3, 0.5, 4, gin_channels=gin_channels)
+      self.dp = StochasticDurationPredictor(in_channels = hidden_channels,
+                                            filter_channels = 192,
+                                            kernel_size = 3,
+                                            p_dropout = 0.5,
+                                            n_flows = 4,
+                                            gin_channels = gin_channels)
+
     else:
-      self.dp = DurationPredictor(hidden_channels, 256, 3, 0.5, gin_channels=gin_channels)
+      self.dp = DurationPredictor(in_channels = hidden_channels,
+                                  filter_channels = 256,
+                                  kernel_size = 3,
+                                  p_dropout = 0.5,
+                                  gin_channels=gin_channels)
 
     if n_speakers > 1:
       self.emb_g = nn.Embedding(n_speakers, gin_channels)

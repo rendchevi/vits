@@ -81,6 +81,7 @@ def run(rank, n_gpus, hps):
         drop_last=False, collate_fn=collate_fn)
 
   net_g = SynthesizerTrn(
+      hps,
       len(symbols),
       hps.data.filter_length // 2 + 1,
       hps.train.segment_size // hps.data.hop_length,

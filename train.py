@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import argparse
 import itertools
@@ -226,6 +227,8 @@ def train_and_evaluate(rank, epoch, hps, nets, optims, schedulers, scaler, loade
         utils.save_checkpoint(net_g, optim_g, hps.train.learning_rate, epoch, os.path.join(hps.model_dir, "G_{}.pth".format(global_step)))
         utils.save_checkpoint(net_d, optim_d, hps.train.learning_rate, epoch, os.path.join(hps.model_dir, "D_{}.pth".format(global_step)))
     global_step += 1
+
+    sys.stdout.write(f"\r[Epoch] {epoch} [Step] {global_step} [Loss G] {loss_gen_all.item()} [Loss D] {loss_disc_all.item()}")
   
   if rank == 0:
     logger.info('====> Epoch: {}'.format(epoch))
